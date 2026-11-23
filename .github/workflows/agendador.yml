@@ -1,0 +1,21 @@
+name: agendador do CommentFlow
+
+# A Vercel no plano gratuito só dispara cron uma vez por dia, e os posts têm
+# hora marcada. Então quem bate no agendador de 5 em 5 minutos é este fluxo.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  bater:
+    runs-on: ubuntu-latest
+    steps:
+      - name: chamar /api/agendador
+        run: |
+          codigo=$(curl -s -o /tmp/resposta.txt -w "%{http_code}" --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+            "https://commentflow-delta.vercel.app/api/agendador")
+          echo "HTTP $codigo"
+          cat /tmp/resposta.txt
+          test "$codigo" = "200"
