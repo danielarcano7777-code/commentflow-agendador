@@ -1,21 +1,31 @@
 name: agendador do CommentFlow
 
-# A Vercel no plano gratuito só dispara cron uma vez por dia, e os posts têm
-# hora marcada. Então quem bate no agendador de 5 em 5 minutos é este fluxo.
+# O GitHub só aceita agendamento de 5 em 5 minutos, e os posts têm hora
+# marcada no minuto. Por isso cada execução fica pouco mais de quatro minutos
+# no ar, chamando o agendador a cada minuto: uma execução cobre o intervalo
+# até a seguinte começar.
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
+# duas execuções ao mesmo tempo não ajudam em nada
+concurrency:
+  group: agendador
+  cancel-in-progress: false
+
 jobs:
   bater:
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     steps:
-      - name: chamar /api/agendador
+      - name: chamar /api/agendador a cada minuto
         run: |
-          codigo=$(curl -s -o /tmp/resposta.txt -w "%{http_code}" --max-time 120 \
-            -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
-            "https://commentflow-delta.vercel.app/api/agendador")
-          echo "HTTP $codigo"
-          cat /tmp/resposta.txt
-          test "$codigo" = "200"
+          for i in 1 2 3 4 5; do
+            codigo=$(curl -s -o /tmp/resposta.txt -w "%{http_code}" --max-time 110 \
+              -H "Authorization: Bearer ${{ secrets.CRON_TOKEN }}" \
+              "https://commentflow-delta.vercel.app/api/agendador")
+            echo "$(date -u +%H:%M:%S) HTTP $codigo $(cat /tmp/resposta.txt)"
+            if [ "$codigo" != "200" ]; then exit 1; fi
+            if [ "$i" != "5" ]; then sleep 50; fi
+          done
